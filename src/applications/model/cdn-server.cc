@@ -31,42 +31,42 @@
 #include "ns3/uinteger.h"
 
 #include "udp-echo-server.h"
-#define FILESIZE 1000
-#define REQSIZE 10
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("CDNServerApplication");
+NS_LOG_COMPONENT_DEFINE ("CdnServerApplication");
 
-NS_OBJECT_ENSURE_REGISTERED (CDNServer);
+NS_OBJECT_ENSURE_REGISTERED (CdnServer);
+
+vector<Address> addList;
 
 TypeId
-CDNServer::GetTypeId (void)
+CdnServer::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::CDNServer")
+  static TypeId tid = TypeId ("ns3::CdnServer")
     .SetParent<Application> ()
     .SetGroupName("Applications")
-    .AddConstructor<CDNServer> ()
+    .AddConstructor<CdnServer> ()
     .AddAttribute ("Port", "Port on which we listen for incoming packets.",
                    UintegerValue (9),
-                   MakeUintegerAccessor (&CDNServer::m_port),
+                   MakeUintegerAccessor (&CdnServer::m_port),
                    MakeUintegerChecker<uint16_t> ())
     .AddTraceSource ("Rx", "A packet has been received",
-                     MakeTraceSourceAccessor (&CDNServer::m_rxTrace),
+                     MakeTraceSourceAccessor (&CdnServer::m_rxTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("RxWithAddresses", "A packet has been received",
-                     MakeTraceSourceAccessor (&CDNServer::m_rxTraceWithAddresses),
+                     MakeTraceSourceAccessor (&CdnServer::m_rxTraceWithAddresses),
                      "ns3::Packet::TwoAddressTracedCallback")
   ;
   return tid;
 }
 
-CDNServer::CDNServer ()
+CdnServer::CdnServer ()
 {
   NS_LOG_FUNCTION (this);
 }
 
-CDNServer::~CDNServer()
+CdnServer::~CdnServer()
 {
   NS_LOG_FUNCTION (this);
   m_socket = 0;
@@ -74,14 +74,14 @@ CDNServer::~CDNServer()
 }
 
 void
-CDNServer::DoDispose (void)
+CdnServer::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
   Application::DoDispose ();
 }
 
 void 
-CDNServer::StartApplication (void)
+CdnServer::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
@@ -133,12 +133,12 @@ CDNServer::StartApplication (void)
         }
     }
 
-  m_socket->SetRecvCallback (MakeCallback (&CDNServer::HandleRead, this));
-  m_socket6->SetRecvCallback (MakeCallback (&CDNServer::HandleRead, this));
+  m_socket->SetRecvCallback (MakeCallback (&CdnServer::HandleRead, this));
+  m_socket6->SetRecvCallback (MakeCallback (&CdnServer::HandleRead, this));
 }
 
 void 
-CDNServer::StopApplication ()
+CdnServer::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
 
@@ -154,17 +154,15 @@ CDNServer::StopApplication ()
     }
 }
 
-vector<Address> nodeList;
 void 
-UdpEchoServer::HandleRead (Ptr<Socket> socket)
+CdnServer::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
-    NS_LOG_INFO ("Inside Handle Read!");
-  Ptr<Packet> packet;
+
+  Ptr<Packet> packet, pktToSend;
   Address from;
   Address localAddress;
-  while ((packet = socket->RecvFrom (from)))
-    {
+  while ((packet = socket->RecvFrom (from))) {
       socket->GetSockName (localAddress);
       m_rxTrace (packet);
       m_rxTraceWithAddresses (packet, from, localAddress);
@@ -183,36 +181,39 @@ UdpEchoServer::HandleRead (Ptr<Socket> socket)
 
       packet->RemoveAllPacketTags ();
       packet->RemoveAllByteTags ();
+	
+	uint8_t *buffer = new uint8_t[packet->GetSize ()];
+	struct pdata *prcv = (struct pdata *)buffer;
 
-      NS_LOG_LOGIC ("Receiving request packet for file");
-      Ptr<Packet> pktToSend = Create<Packet> ();
+	if(!prcv->ack) {	
+		if(prcv->bypass) {
+			pktToSend = Create<Packet>(prcv->numBytes);
+		} else {
+			vector<from> vec;
+			vec = addList;
+			struct pdata pktdata{vec};
+			pktToSend = Create<Packet> ((uint8_t*) &pdata, sizeof(pdata));
+		}
+			
+	      NS_LOG_LOGIC ("Echoing packet");
+	      socket->SendTo (pktToSend, 0, from);
 
-      if(!request) {
-          nodeList.push_back(from);
-      } else {
-            if(request && service == true) {
-                packet = FILESIZE; 
-                socket->SendTo (pktToSend, 0, from);
-
-           } else {
-               for(int i = 0; i < vector.size(); i++) {
-                    packet.add(vector[i]);
-               }
-               socket->SendTo(pktToSend, 0, from);
-            }
-                if (InetSocketAddress::IsMatchingType (from))
-                {
-                    NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << packet->GetSize () << " bytes to " <<
-                           InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
-                            InetSocketAddress::ConvertFrom (from).GetPort ());
-                }
-                else if (Inet6SocketAddress::IsMatchingType (from))
-                {
-                    NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << packet->GetSize () << " bytes to " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetPort ());
-                }
-      }
+		
+	      if (InetSocketAddress::IsMatchingType (from))
+		{
+		  NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << pktToSend->GetSize () << " bytes to " <<
+			       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
+			       InetSocketAddress::ConvertFrom (from).GetPort ());
+		}
+	      else if (Inet6SocketAddress::IsMatchingType (from))
+		{
+		  NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << pktToSend->GetSize () << " bytes to " <<
+			       Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
+			       Inet6SocketAddress::ConvertFrom (from).GetPort ());
+		}
+	} else  {
+		addList.push_back(from);
+	}
     }
 }
 

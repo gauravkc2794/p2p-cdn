@@ -24,8 +24,22 @@
 #include "ns3/ptr.h"
 #include "ns3/address.h"
 #include "ns3/traced-callback.h"
-
+using namespace std;
 namespace ns3 {
+
+struct pdata {
+	vector<Address> addr;
+	bool ack;
+	bool bypass;
+	uint32_t numbytes;
+};
+
+struct reqp {
+	uint32_t numbytes;
+	bool ack;
+	bool bypass;
+};
+
 
 class Socket;
 class Packet;
@@ -83,5 +97,5 @@ private:
 
 } // namespace ns3
 
-#endif /* UDP_ECHO_SERVER_H */
+#endif /* UDP_CDN_SERVER_H */
 

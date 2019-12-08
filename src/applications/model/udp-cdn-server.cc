@@ -38,6 +38,8 @@ NS_LOG_COMPONENT_DEFINE ("UdpCDNServerApplication");
 
 NS_OBJECT_ENSURE_REGISTERED (UdpCDNServer);
 
+std::vector<Address> addList;
+
 TypeId
 UdpCDNServer::GetTypeId (void)
 {
@@ -87,8 +89,6 @@ UdpCDNServer::StartApplication (void)
     {
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (GetNode (), tid);
-      NS_LOG_INFO ("At time " << GetNode ()->GetId());
-      NS_LOG_INFO ("At time " << m_port); 
       InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), m_port);
       if (m_socket->Bind (local) == -1)
         {
@@ -141,7 +141,6 @@ void
 UdpCDNServer::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
-    NS_LOG_INFO ("Inside Stop!");
 
   if (m_socket != 0) 
     {
@@ -159,12 +158,11 @@ void
 UdpCDNServer::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
-    NS_LOG_INFO ("Inside Handle Read!");
-  Ptr<Packet> packet;
+
+  Ptr<Packet> packet, pktToSend;
   Address from;
   Address localAddress;
-  while ((packet = socket->RecvFrom (from)))
-  {
+  while ((packet = socket->RecvFrom (from))) {
       socket->GetSockName (localAddress);
       m_rxTrace (packet);
       m_rxTraceWithAddresses (packet, from, localAddress);
@@ -183,22 +181,39 @@ UdpCDNServer::HandleRead (Ptr<Socket> socket)
 
       packet->RemoveAllPacketTags ();
       packet->RemoveAllByteTags ();
+	
+	uint8_t *buffer = new uint8_t[packet->GetSize ()];
+	struct pdata *prcv = (struct pdata *)buffer;
 
-      NS_LOG_LOGIC ("Echoing packet");
-      socket->SendTo (packet, 0, from);
+	if(!prcv->ack) {	
+		if(prcv->bypass) {
+			pktToSend = Create<Packet>(prcv->numbytes);
+		} else {
+			std::vector<Address> vec;
+			vec = addList;
+			struct pdata pktdata{vec};
+			pktToSend = Create<Packet> ((uint8_t*) &pktdata, sizeof(pktdata));
+		}
+			
+	      NS_LOG_LOGIC ("Echoing packet");
+	      socket->SendTo (pktToSend, 0, from);
 
-      if (InetSocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << packet->GetSize () << " bytes to " <<
-                       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
-                       InetSocketAddress::ConvertFrom (from).GetPort ());
-        }
-      else if (Inet6SocketAddress::IsMatchingType (from))
-        {
-          NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << packet->GetSize () << " bytes to " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
-                       Inet6SocketAddress::ConvertFrom (from).GetPort ());
-        }
+		
+	      if (InetSocketAddress::IsMatchingType (from))
+		{
+		  NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << pktToSend->GetSize () << " bytes to " <<
+			       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
+			       InetSocketAddress::ConvertFrom (from).GetPort ());
+		}
+	      else if (Inet6SocketAddress::IsMatchingType (from))
+		{
+		  NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s server sent " << pktToSend->GetSize () << " bytes to " <<
+			       Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
+			       Inet6SocketAddress::ConvertFrom (from).GetPort ());
+		}
+	} else  {
+		addList.push_back(from);
+	}
     }
 }
 
