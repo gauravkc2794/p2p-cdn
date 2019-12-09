@@ -134,7 +134,7 @@ public:
    */
   void SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize);
 
-  void SetFill(bool bypass, bool ack, uint32_t num_bytes);
+  void SetFill(bool bypass, bool ack, uint32_t& num_bytes);
 
 protected:
   virtual void DoDispose (void);

@@ -112,6 +112,12 @@ UdpPeerClientHelper::SetFill (Ptr<Application> app, uint8_t *fill, uint32_t fill
   app->GetObject<UdpPeerClient>()->SetFill (fill, fillLength, dataLength);
 }
 
+void
+UdpPeerClientHelper::SetFill (Ptr<Application> app,bool bypass, bool ack, uint32_t& num_bytes)
+{
+  app->GetObject<UdpPeerClient>()->SetFill (bypass, ack, num_bytes);
+}
+
 ApplicationContainer
 UdpPeerClientHelper::Install (Ptr<Node> node) const
 {

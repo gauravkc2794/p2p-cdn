@@ -1,4 +1,4 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
+/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mosde:nil; -*- */
 /*
  * Copyright 2007 University of Washington
  * 
@@ -28,7 +28,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/trace-source-accessor.h"
 #include "udp-peer-client.h"
-
+using namespace std;
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("UdpPeerClientApplication");
@@ -99,7 +99,7 @@ UdpPeerClient::~UdpPeerClient()
   NS_LOG_FUNCTION (this);
   m_socket = 0;
 
-  delete [] m_data;
+  //delete [] m_data;
   m_data = 0;
   m_dataSize = 0;
 }
@@ -133,7 +133,7 @@ UdpPeerClient::StartApplication (void)
 
   if (m_socket == 0)
     {
-      NS_LOG_INFO ("Outbound address " << Ipv4Address::ConvertFrom(m_peerAddress) << m_peerPort);
+      //NS_LOG_INFO ("Outbound address " << Ipv4Address::ConvertFrom(m_peerAddress) << m_peerPort);
       TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
       m_socket = Socket::CreateSocket (GetNode (), tid);
       
@@ -258,13 +258,14 @@ UdpPeerClient::SetFill (uint8_t fill, uint32_t dataSize)
   m_size = dataSize;
 }
 void
-UdpPeerClient::SetFill(bool bypass,bool ack,uint32_t num_bytes){
+UdpPeerClient::SetFill(bool bypass,bool ack,uint32_t& num_bytes){
     req_p data;
     data.bypass = bypass;
     data.ack = ack;
     data.num_bytes = num_bytes;
-    m_data = (uint8_t*) &data;
+    m_data =  (uint8_t*) &data;
     m_dataSize = sizeof(m_data);
+    m_size = m_dataSize;
 }
 void 
 UdpPeerClient::SetFill (uint8_t *fill, uint32_t fillSize, uint32_t dataSize)
@@ -390,7 +391,7 @@ void
 UdpPeerClient::HandleRead (Ptr<Socket> socket)
 {
   NS_LOG_FUNCTION (this << socket);
-  Ptr<Packet> packet;
+  Ptr<Packet> packet, pktToSend;;
   Address from;
   Address localAddress;
   while ((packet = socket->RecvFrom (from)))
@@ -407,6 +408,100 @@ UdpPeerClient::HandleRead (Ptr<Socket> socket)
                        Inet6SocketAddress::ConvertFrom (from).GetIpv6 () << " port " <<
                        Inet6SocketAddress::ConvertFrom (from).GetPort ());
         }
+    packet->RemoveAllPacketTags ();
+    packet->RemoveAllByteTags ();
+	
+	uint8_t *buffer = new uint8_t[packet->GetSize ()];
+    uint32_t size = packet->CopyData(buffer, packet->GetSize ());
+    string str = (char *)buffer;
+    cout << "Peer:: Incoming data : " << str << "\n";
+
+    std::vector <string> tokens; 
+    cout << "Peer:: Size of incoming packet: " << size << "\n";
+    // stringstream class check1 
+    std::stringstream check1(str); 
+      
+    string intermediate; 
+      
+    // tokenizing w.r.t. space ' ' 
+    while(getline(check1, intermediate, ';')) 
+    { 
+        tokens.push_back(intermediate); 
+    }
+    
+    // Printing the token vector 
+    for(unsigned int i = 0; i < tokens.size(); i++) { 
+        //cout << tokens[i] << '\n'; 
+	}   
+    Address serverAdd;
+    if(tokens[0] == "cdn"){
+        serverAdd = from;
+        cout<< "Peer:: This is a CDN packet!" << "\n";
+        if(tokens[1] == "pdata"){
+            cout << "Peer::Data recieved from CDN!" << "\n";
+        }
+        else{
+            cout << "Peer list packet from CDN!" << "\n";
+            uint32_t numPeers = (tokens.size() - 2);
+            stringstream geek(tokens[1]); 
+            uint32_t x; 
+            geek >> x;
+            uint32_t numBytes = (uint32_t)(x/numPeers);
+            uint16_t port= 0;
+            string ip;
+            cout << "Peer: Peers in peer list: " << numPeers << "\n";
+            //send reqp to peers
+            for(unsigned int i = 2; i < tokens.size(); i++) {
+                uint32_t data = (x < numBytes? x :  numBytes);
+                x -= numBytes;
+                cout << "Peer: Number of bytes requesting: " << data << "\n";
+                string app = std::to_string(data); 
+                std::stringstream addr(tokens[i]); 
+      
+                string temp; 
+                bool flag = false;
+            // tokenizing w.r.t. space ' ' 
+                while(getline(addr, temp, ':')) 
+                {
+                    if(!flag) {
+                        ip = temp;
+                        flag = true;
+                    }
+                    else{
+                        int myInt(std::stoi(temp));
+                        uint16_t myInt16(0);
+                        if (myInt <= static_cast<int>(UINT16_MAX) && myInt >=0) {
+                                myInt16 = static_cast<uint16_t>(myInt);
+                                port = myInt16;
+                        }
+                    }
+                    
+                }
+                this->SetFill("peer;" + app);
+                cout << "Peer data size:: " << app << "\n";
+                cout << "Client::IP : " << ip << ":" << port << "\n";
+                pktToSend = Create<Packet> (m_data, m_dataSize);
+                socket->SendTo(pktToSend, 0, InetSocketAddress(ip.c_str(), port));
+            }
+        }
+
+    } else {
+        if(tokens[0] == "peer"){
+            cout << "Peer::This is a peer packet!" << "\n";
+            string result = "peerack";
+			uint32_t numbytes = static_cast<uint32_t>(std::stoul(tokens[1]));
+			pktToSend = Create<Packet>((uint8_t*)result.c_str(), numbytes);
+            socket->SendTo (pktToSend, 0, from);
+         } else {
+            cout << "Peer:: Data received from peer, sending ack to CDN!\n";
+            this->SetFill("true;false");
+            pktToSend = Create<Packet> (m_data, m_dataSize);
+            uint16_t server_port = 9;
+            string server_ip = "10.1.1.1";
+            socket->SendTo (pktToSend, 0, InetSocketAddress(server_ip.c_str(), server_port));
+         }
+    }
+
       socket->GetSockName (localAddress);
       m_rxTrace (packet);
       m_rxTraceWithAddresses (packet, from, localAddress);

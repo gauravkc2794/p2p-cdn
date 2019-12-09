@@ -144,6 +144,7 @@ public:
    * \param app Smart pointer to the application (real type must be UdpEchoClient).
    * \param fill The string to use as the actual echo data bytes.
    */
+  void SetFill(Ptr<Application> app,bool, bool, uint32_t&);
   void SetFill (Ptr<Application> app, std::string fill);
 
   /**

@@ -29,17 +29,7 @@ namespace ns3 {
 
 struct pdata {
 	vector<Address> addr;
-	bool ack;
-	bool bypass;
-	uint32_t numbytes;
 };
-
-struct reqp {
-	uint32_t numbytes;
-	bool ack;
-	bool bypass;
-};
-
 
 class Socket;
 class Packet;

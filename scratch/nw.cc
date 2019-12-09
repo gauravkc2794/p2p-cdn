@@ -19,7 +19,7 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
-
+#include <stdint.h>
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
@@ -27,7 +27,7 @@ NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
 int
 main (int argc, char *argv[])
 {
-  int numNodes = 3;
+  int numNodes = 8;
 
   CommandLine cmd;
   cmd.AddValue("numNodes", "Number of nodes in the network", numNodes);
@@ -55,13 +55,12 @@ main (int argc, char *argv[])
   address.SetBase ("10.1.1.0", "255.255.255.0");
   NetDeviceContainer devices;
   Ipv4Address serverAdd;
-
   for(int i = 0; i < numNodes; i++) {
 		devices = p2ps[0].Install(nodes.Get(i), nodes.Get(numNodes));
 		Ipv4InterfaceContainer interfaces = address.Assign(devices);
 		if(i == 0) serverAdd = interfaces.GetAddress(0);
-		//__gnu_cxx::cout << list[i] << "\n";
-		address.NewNetwork();	
+		std::cout << interfaces.GetAddress(0) << "\n";
+        address.NewNetwork();		
   }
 			
 
@@ -70,20 +69,21 @@ main (int argc, char *argv[])
 
   ApplicationContainer serverApps = echoServer.Install (nodes.Get(0));
   serverApps.Start (Seconds (1.0));
-  serverApps.Stop (Seconds (20.0));
+  serverApps.Stop (Seconds (100.0));
 
-  for(int i = 0; i < numNodes; i++) {
+  for(int i = 1; i < numNodes; i++) {
   	UdpPeerClientHelper echoClient (serverAdd, 9);
 	//__gnu_cxx::cout << list[i] << "\n";
   	echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
   	echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
-  	//echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
-    std::__cxx11::string data = "hello";
-    echoClient.SetFill(data);
+    //echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
+    //uint32_t temp=0;
+    
 
   	ApplicationContainer clientApps = echoClient.Install (nodes.Get (i));
-  	clientApps.Start (Seconds (i+2.0));
-  	clientApps.Stop (Seconds (i+5.0));
+    echoClient.SetFill(clientApps.Get(0),"false;false;1000");
+  	clientApps.Start (Seconds (10.0*i));
+  	clientApps.Stop (Seconds (1000.0));
   }
 
   Simulator::Run ();
