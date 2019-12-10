@@ -19,7 +19,9 @@
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/names.h"
 #include <stdint.h>
+#include <string>
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("FirstScriptExample");
@@ -46,8 +48,9 @@ main (int argc, char *argv[])
   PointToPointHelper p2ps[numNodes+1];
   for(int i = 0; i < numNodes; i++) {
 		PointToPointHelper p2p;
-		p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+       	p2p.SetDeviceAttribute ("DataRate", StringValue ("100kbps"));
 		p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+        //p2p.EnablePcapAll ("nw",false);
 		p2ps[i] = p2p;
   }
 
@@ -55,6 +58,8 @@ main (int argc, char *argv[])
   address.SetBase ("10.1.1.0", "255.255.255.0");
   NetDeviceContainer devices;
   Ipv4Address serverAdd;
+  Names::Add("server",nodes.Get(0));
+  Names::Add("router",nodes.Get(numNodes));
   for(int i = 0; i < numNodes; i++) {
 		devices = p2ps[0].Install(nodes.Get(i), nodes.Get(numNodes));
 		Ipv4InterfaceContainer interfaces = address.Assign(devices);
@@ -72,20 +77,25 @@ main (int argc, char *argv[])
   serverApps.Stop (Seconds (100.0));
 
   for(int i = 1; i < numNodes; i++) {
+    Names::Add("client"+to_string(i),nodes.Get(i));
   	UdpPeerClientHelper echoClient (serverAdd, 9);
 	//__gnu_cxx::cout << list[i] << "\n";
   	echoClient.SetAttribute ("MaxPackets", UintegerValue (1));
-  	echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.0)));
+  	echoClient.SetAttribute ("Interval", TimeValue (Seconds (1.2)));
     //echoClient.SetAttribute ("PacketSize", UintegerValue (1024));
     //uint32_t temp=0;
     
 
   	ApplicationContainer clientApps = echoClient.Install (nodes.Get (i));
-    echoClient.SetFill(clientApps.Get(0),"false;false;1000");
+    echoClient.SetFill(clientApps.Get(0),"false;false;5000");
   	clientApps.Start (Seconds (10.0*i));
   	clientApps.Stop (Seconds (1000.0));
   }
-
+  for(int i=0;i<numNodes;i++){
+     //AsciiTraceHelper ascii;
+     //p2ps[i].EnableAsciiAll (ascii.CreateFileStream ("myfirst"+to_string(i)+".tr"));
+     p2ps[i].EnablePcapAll ("nw");
+  }
   Simulator::Run ();
   Simulator::Destroy ();
   return 0;
